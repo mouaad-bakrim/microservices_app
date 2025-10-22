@@ -1,0 +1,26 @@
+# Virtual environments
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+*.log
+
+# Flask / FastAPI
+instance/
+.env
+
+# Docker
+*.env
+*.log
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
