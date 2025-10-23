@@ -11,13 +11,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # ✅ port externe changé
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin -d micro_db"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+# --- Django Services (Require Database) ---
 
   auth_service:
     build: ./auth_service
@@ -26,11 +28,12 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "8000:8000"
+      - "8010:8000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy # Wait for DB health check
     restart: unless-stopped
 
   achat_service:
@@ -40,11 +43,12 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "8001:8000"
+      - "8011:8000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   vente_service:
@@ -54,22 +58,38 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "8002:8000"
+      - "8012:8000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+# --- Python/API Services (New and Existing) ---
 
   stock_service:
     build: ./stock_service
     container_name: stock_service
-    command: python app.py
+    command: python app.py # Assuming app.py runs the Flask server on 8000
     ports:
-      - "8003:8000"
+      - "8013:8000"
     env_file:
       - .env
     restart: unless-stopped
+
+  facture_service: # NEW SERVICE: FastAPI
+    build: ./facture_service
+    container_name: facture_service
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 # Standard FastAPI run command (assuming entry point is main.py)
+    ports:
+      - "8014:8000" # Assigning the next free host port
+    env_file:
+      - .env
+    # Add depends_on: - db if this service uses the database
+    restart: unless-stopped
+
+# --- Proxy ---
 
   nginx:
     image: nginx:latest
@@ -78,11 +98,13 @@ services:
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    # Add the new service to the dependencies
     depends_on:
       - auth_service
       - achat_service
       - vente_service
       - stock_service
+      - facture_service
     restart: unless-stopped
 
 volumes:
