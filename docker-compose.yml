@@ -2,61 +2,88 @@ version: '3.9'
 
 services:
   db:
-    image: postgres:16
+    image: postgres:15
     container_name: postgres_db
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
-      POSTGRES_DB: main_db
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: micro_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # ✅ port externe changé
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d micro_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   auth_service:
     build: ./auth_service
+    container_name: auth_service
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     depends_on:
       - db
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/main_db
-
-  vente_service:
-    build: ./vente_service
-    ports:
-      - "5001:5000"
-    depends_on:
-      - db
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/main_db
+    restart: unless-stopped
 
   achat_service:
     build: ./achat_service
+    container_name: achat_service
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "5002:5000"
+      - "8001:8000"
+    env_file:
+      - .env
     depends_on:
       - db
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/main_db
+    restart: unless-stopped
+
+  vente_service:
+    build: ./vente_service
+    container_name: vente_service
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+    restart: unless-stopped
 
   stock_service:
     build: ./stock_service
+    container_name: stock_service
+    command: python app.py
     ports:
-      - "5003:5000"
-    depends_on:
-      - db
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/main_db
+      - "8003:8000"
+    env_file:
+      - .env
+    restart: unless-stopped
 
-  facture_service:
-    build: ./facture_service
+  nginx:
+    image: nginx:latest
+    container_name: nginx_reverse_proxy
     ports:
-      - "5004:5000"
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
     depends_on:
-      - db
-    environment:
-      - DATABASE_URL=postgresql://admin:admin@db:5432/main_db
+      - auth_service
+      - achat_service
+      - vente_service
+      - stock_service
+    restart: unless-stopped
 
 volumes:
   postgres_data:

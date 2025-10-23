@@ -25,5 +25,8 @@ def update_stock():
     return jsonify({"message": "Stock mis à jour"})
 
 if __name__ == '__main__':
-    db.create_all()
+    # 🟢 إنشاء الجداول داخل سياق التطبيق
+    with app.app_context():
+        db.create_all()
+    
     app.run(host='0.0.0.0', port=5001)
