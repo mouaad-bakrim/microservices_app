@@ -71,12 +71,13 @@ services:
   stock_service:
     build: ./stock_service
     container_name: stock_service
-    command: python app.py # Assuming app.py runs the Flask server on 8000
+    command: gunicorn -w 4 -b 0.0.0.0:8000 app:app
     ports:
       - "8013:8000"
     env_file:
       - .env
     restart: unless-stopped
+
 
   facture_service: # NEW SERVICE: FastAPI
     build: ./facture_service
